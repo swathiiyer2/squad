@@ -89,7 +89,7 @@ class CharEmbeddings(nn.Module):
         x_highway = self.highway(x_conv)
         # (sentence_length * batch_size, word_embed_size)
         x_word_emb = self.dropout(x_highway)
-        # (sentence_length * batch_size, word_embed_size)
+        #  (sentence_length * batch_size, word_embed_size)
         output = x_word_emb.view(sentence_length, batch_size, -1)
         # (sentence_length, batch_size, word_embed_size)
 
