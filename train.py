@@ -73,7 +73,7 @@ def main(args):
     model.train()
     ema = util.EMA(model, args.ema_decay)
 
-    # Get saver
+    # Get  saver
     saver = util.CheckpointSaver(args.save_dir,
                                  max_checkpoints=args.max_checkpoints,
                                  metric_name=args.metric_name,
