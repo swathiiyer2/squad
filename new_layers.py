@@ -10,6 +10,53 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+class MultiheadSelfAttention(nn.Module):
+    """
+    Ref Assignment 5
+    A vanilla multi-head masked self-attention layer with a projection at the end.
+    I believe I could have just used torch.nn.MultiheadAttention but their documentation
+    is all but absent and code ugly so I don't trust it, rolling my own here.
+    """
+
+    def __init__(self, n_embd, n_head, drop_prob=0.1):
+        super().__init__()
+
+        # key, query, value projections for all heads
+        self.key = nn.Linear(n_embd, n_embd)
+        self.query = nn.Linear(n_embd, n_embd)
+        self.value = nn.Linear(n_embd, n_embd)
+        # regularization
+        self.attn_drop = nn.Dropout(drop_prob)
+        self.resid_drop = nn.Dropout(drop_prob)
+        # output projection
+        self.proj = nn.Linear(n_embd, n_embd)
+        # causal mask to ensure that attention is only applied to the left in the input sequence
+        block_size = 128
+        self.register_buffer("mask", torch.tril(torch.ones(block_size, block_size))
+                                     .view(1, 1, block_size, block_size))
+        self.n_head = n_head
+
+    def forward(self, x, layer_past=None):
+        B, T, C = x.size()
+
+        # calculate query, key, values for all heads in batch and move head forward to be the batch dim
+        k = self.key(x).view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
+        q = self.query(x).view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
+        v = self.value(x).view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
+
+        # causal self-attention; Self-attend: (B, nh, T, hs) x (B, nh, hs, T) -> (B, nh, T, T)
+        att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
+        att = att.masked_fill(self.mask[:,:,:T,:T] == 0, -1e10) # todo: just use float('-inf') instead?
+        att = F.softmax(att, dim=-1)
+        att = self.attn_drop(att)
+        y = att @ v # (B, nh, T, T) x (B, nh, T, hs) -> (B, nh, T, hs)
+        y = y.transpose(1, 2).contiguous().view(B, T, C) # re-assemble all head outputs side by side
+
+        # output projection
+        y = self.resid_drop(self.proj(y))
+        return y
+
+
 
 class EmbeddingWithChar(nn.Module):
     """Embedding layer used by BiDAF, with the character-level component.
@@ -35,7 +82,7 @@ class EmbeddingWithChar(nn.Module):
         return emb
 
 
-class CharEmbeddings(nn.Module): 
+class CharEmbeddings(nn.Module):
     """
     Class that converts input words to their embeddings from convex neural networks.
     """
@@ -43,7 +90,7 @@ class CharEmbeddings(nn.Module):
                        char_embed_size=64, char_limit=16, kernel_size=5):
         """
         Init the Embedding layer for one language
-        @param embed_size (int): Embedding size (dimensionality) for the output 
+        @param embed_size (int): Embedding size (dimensionality) for the output
         @param vocab_size (int): Vocabulary size (i.e. Character tokens numbers).
         """
         super(CharEmbeddings, self).__init__()
@@ -75,7 +122,7 @@ class CharEmbeddings(nn.Module):
         Looks up character-based CNN embeddings for the words in a batch of sentences.
         @param x: Tensor of integers of shape (sentence_length, batch_size, max_word_length) where
             each integer is an index into the character vocabulary
-        @param output: Tensor of shape (sentence_length, batch_size, embed_size), containing the 
+        @param output: Tensor of shape (sentence_length, batch_size, embed_size), containing the
             CNN-based embeddings for each word of the sentences in the batch
         """
         # (sentence_length, batch_size, max_word_length)
@@ -127,7 +174,7 @@ class HighwayEncoderChar(nn.Module):
 
     def __init__(self, embed_dim: int): # word embedding dimension
         super(HighwayEncoderChar, self).__init__()
-        
+
         self.conv_out_proj = nn.Linear(embed_dim, embed_dim, bias=True)
         self.gate = nn.Linear(embed_dim, embed_dim, bias=True)
 
