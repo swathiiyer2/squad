@@ -19,8 +19,8 @@ class MultiheadSelfAttention(nn.Module):
     """
 
     def __init__(self, n_embd, n_head, drop_prob=0.1):
+        '''
         super().__init__()
-'''
         # key, query, value projections for all heads
         print("making new layer")
         self.key = nn.Linear(n_embd, n_embd)
