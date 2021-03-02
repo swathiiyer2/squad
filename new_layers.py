@@ -22,12 +22,16 @@ class MultiheadSelfAttention(nn.Module):
         super().__init__()
 
         # key, query, value projections for all heads
+        print("making new layer")
         self.key = nn.Linear(n_embd, n_embd)
+        print("made key layer")
         self.query = nn.Linear(n_embd, n_embd)
+        print("made query layer")
         self.value = nn.Linear(n_embd, n_embd)
         # regularization
         self.attn_drop = nn.Dropout(drop_prob)
         self.resid_drop = nn.Dropout(drop_prob)
+        print("finished reg")
         # output projection
         self.proj = nn.Linear(n_embd, n_embd)
         # causal mask to ensure that attention is only applied to the left in the input sequence
@@ -35,6 +39,7 @@ class MultiheadSelfAttention(nn.Module):
         self.register_buffer("mask", torch.tril(torch.ones(block_size, block_size))
                                      .view(1, 1, block_size, block_size))
         self.n_head = n_head
+        print("made whole self-attn")
 
     def forward(self, x, layer_past=None):
         B, T, C = x.size()
