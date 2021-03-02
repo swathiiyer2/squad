@@ -51,9 +51,9 @@ class MultiheadSelfAttention(nn.Module):
         ## Layer normalization across the features, i.e. across the last dimension that is equal to input_dim
         self.layernorm = nn.LayerNorm(n_embd)
     def forward(self, x, is_pad):
-    '''
-    def forward(self, x, layer_past=None):
-        
+
+#    def forward(self, x, layer_past=None):
+        '''
         B, T, C = x.size()
 
         # calculate query, key, values for all heads in batch and move head forward to be the batch dim
@@ -74,12 +74,12 @@ class MultiheadSelfAttention(nn.Module):
         return y
         '''
 
-        """
+        ''' 
         x: input tensor of shape (batch_size, text_len, input_dim).
             Here text_len is the length of the context/question.
         is_pad: tensor of shape(batch_size, text_len). Hold value TRUE for pad tokens. 
         Output: tensor of the same shape as the input, (batch_size, text_len, input_dim)
-        """
+        '''
         skip_connection = x
 
         x = self.layernorm(x) ## shape (batch_size, text_len, input_dim)
