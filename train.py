@@ -50,6 +50,8 @@ def main(args):
     if uses_char_embeddings:
         char_vectors = util.torch_from_json(args.char_emb_file)
 
+    print(word_vectors[0])
+
     # Get model
     log.info('Building model...')
         
