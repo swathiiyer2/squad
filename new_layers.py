@@ -44,11 +44,12 @@ class MultiheadSelfAttention(nn.Module):
 
         super(MultiheadSelfAttention, self).__init__()
 
-        self.attention = nn.MultiheadAttention(input_dim, num_heads)
-        self.dropout = nn.Dropout(p_dropout)
+
+        self.attention = nn.MultiheadAttention(n_embd, n_head)
+        self.dropout = nn.Dropout(drop_prob)
 
         ## Layer normalization across the features, i.e. across the last dimension that is equal to input_dim
-        self.layernorm = nn.LayerNorm(input_dim)
+        self.layernorm = nn.LayerNorm(n_embd)
 
     def forward(self, x, layer_past=None):
         '''
