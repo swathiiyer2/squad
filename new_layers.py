@@ -50,9 +50,10 @@ class MultiheadSelfAttention(nn.Module):
 
         ## Layer normalization across the features, i.e. across the last dimension that is equal to input_dim
         self.layernorm = nn.LayerNorm(n_embd)
-
+    def forward(self, x, is_pad):
+    '''
     def forward(self, x, layer_past=None):
-        '''
+        
         B, T, C = x.size()
 
         # calculate query, key, values for all heads in batch and move head forward to be the batch dim
