@@ -20,7 +20,7 @@ class MultiheadSelfAttention(nn.Module):
 
     def __init__(self, n_embd, n_head, drop_prob=0.1):
         super().__init__()
-
+'''
         # key, query, value projections for all heads
         print("making new layer")
         self.key = nn.Linear(n_embd, n_embd)
@@ -40,8 +40,18 @@ class MultiheadSelfAttention(nn.Module):
                                      .view(1, 1, block_size, block_size))
         self.n_head = n_head
         print("made whole self-attn")
+'''
+
+        super(MultiheadSelfAttention, self).__init__()
+		
+		self.attention = nn.MultiheadAttention(input_dim, num_heads)
+		self.dropout = nn.Dropout(p_dropout)
+		
+		## Layer normalization across the features, i.e. across the last dimension that is equal to input_dim
+		self.layernorm = nn.LayerNorm(input_dim)
 
     def forward(self, x, layer_past=None):
+        '''
         B, T, C = x.size()
 
         # calculate query, key, values for all heads in batch and move head forward to be the batch dim
@@ -60,6 +70,25 @@ class MultiheadSelfAttention(nn.Module):
         # output projection
         y = self.resid_drop(self.proj(y))
         return y
+        '''
+
+        """
+		x: input tensor of shape (batch_size, text_len, input_dim).
+			Here text_len is the length of the context/question.
+		is_pad: tensor of shape(batch_size, text_len). Hold value TRUE for pad tokens. 
+		Output: tensor of the same shape as the input, (batch_size, text_len, input_dim)
+		"""
+		skip_connection = x
+		
+		x = self.layernorm(x) ## shape (batch_size, text_len, input_dim)
+		
+		## shape (text_len, batch_size, input_dim).
+		## Here transpose() is needed because of the convention of nn.MultiheadAttention.
+		x = x.transpose(0,1)		
+		x, _ = self.attention(x, x, x, key_padding_mask = is_pad, need_weights=False) 
+		
+		x = x.transpose(0,1) ## shape (batch_size, text_len, input_dim)		
+		return self.dropout(x) + skip_connection
 
 
 
