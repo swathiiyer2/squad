@@ -43,12 +43,12 @@ class MultiheadSelfAttention(nn.Module):
 '''
 
         super(MultiheadSelfAttention, self).__init__()
-		
-		self.attention = nn.MultiheadAttention(input_dim, num_heads)
-		self.dropout = nn.Dropout(p_dropout)
-		
-		## Layer normalization across the features, i.e. across the last dimension that is equal to input_dim
-		self.layernorm = nn.LayerNorm(input_dim)
+
+        self.attention = nn.MultiheadAttention(input_dim, num_heads)
+        self.dropout = nn.Dropout(p_dropout)
+
+        ## Layer normalization across the features, i.e. across the last dimension that is equal to input_dim
+        self.layernorm = nn.LayerNorm(input_dim)
 
     def forward(self, x, layer_past=None):
         '''
@@ -73,22 +73,22 @@ class MultiheadSelfAttention(nn.Module):
         '''
 
         """
-		x: input tensor of shape (batch_size, text_len, input_dim).
-			Here text_len is the length of the context/question.
-		is_pad: tensor of shape(batch_size, text_len). Hold value TRUE for pad tokens. 
-		Output: tensor of the same shape as the input, (batch_size, text_len, input_dim)
-		"""
-		skip_connection = x
-		
-		x = self.layernorm(x) ## shape (batch_size, text_len, input_dim)
-		
-		## shape (text_len, batch_size, input_dim).
-		## Here transpose() is needed because of the convention of nn.MultiheadAttention.
-		x = x.transpose(0,1)		
-		x, _ = self.attention(x, x, x, key_padding_mask = is_pad, need_weights=False) 
-		
-		x = x.transpose(0,1) ## shape (batch_size, text_len, input_dim)		
-		return self.dropout(x) + skip_connection
+        x: input tensor of shape (batch_size, text_len, input_dim).
+            Here text_len is the length of the context/question.
+        is_pad: tensor of shape(batch_size, text_len). Hold value TRUE for pad tokens. 
+        Output: tensor of the same shape as the input, (batch_size, text_len, input_dim)
+        """
+        skip_connection = x
+
+        x = self.layernorm(x) ## shape (batch_size, text_len, input_dim)
+
+        ## shape (text_len, batch_size, input_dim).
+        ## Here transpose() is needed because of the convention of nn.MultiheadAttention.
+        x = x.transpose(0,1)		
+        x, _ = self.attention(x, x, x, key_padding_mask = is_pad, need_weights=False) 
+
+        x = x.transpose(0,1) ## shape (batch_size, text_len, input_dim)		
+        return self.dropout(x) + skip_connection
 
 
 
