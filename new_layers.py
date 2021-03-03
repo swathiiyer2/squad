@@ -43,8 +43,8 @@ class MultiheadSelfAttention(nn.Module):
 '''
 
         super(MultiheadSelfAttention, self).__init__()
-
-
+        self.resize = nn.Linear(n_embd, 2 * n_embd)
+        self.n_embd = n_embd
         self.attention = nn.MultiheadAttention(n_embd, n_head)
         self.dropout = nn.Dropout(drop_prob)
 
@@ -86,12 +86,18 @@ class MultiheadSelfAttention(nn.Module):
 
         ## shape (text_len, batch_size, input_dim).
         ## Here transpose() is needed because of the convention of nn.MultiheadAttention.
+        
         x = x.transpose(0,1)		
-        x, _ = self.attention(x, x, x, key_padding_mask = is_pad, need_weights=False) 
+        #print(x.size())
+        x, _ = self.attention(x, x, x, key_padding_mask = None, need_weights=False) 
 
         x = x.transpose(0,1) ## shape (batch_size, text_len, input_dim)		
-        return self.dropout(x) + skip_connection
+        x = self.dropout(x) + skip_connection
+        #ll = nn.Linear(self.n_embd, 2 * self.n_embd)
 
+        #x =  self.resize(x)
+        #print(x.size())
+        return x
 
 
 class EmbeddingWithChar(nn.Module):
