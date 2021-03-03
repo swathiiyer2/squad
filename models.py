@@ -52,7 +52,10 @@ class BiDAF(nn.Module):
                                      num_layers=1,
                                      drop_prob=drop_prob)
 
-        self.att = layers.BiDAFAttention(hidden_size=2 * hidden_size,
+        #self.att = layers.BiDAFAttention(hidden_size=2 * hidden_size,
+        #                                 drop_prob=drop_prob)
+
+        self.att = layers.BiDAFAttention(hidden_size=hidden_size,
                                          drop_prob=drop_prob)
 
         self.self_att = new_layers.MultiheadSelfAttention(n_embd=hidden_size,
