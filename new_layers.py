@@ -65,7 +65,7 @@ class MultiheadSelfAttention(nn.Module):
         self.attn_drop = nn.Dropout(drop_prob)
         self.resid_drop = nn.Dropout(drop_prob)
         print("finished reg")
-        
+
         # output projection
         self.proj = nn.Linear(n_embd, n_embd)
         # causal mask to ensure that attention is only applied to the left in the input sequence
@@ -124,7 +124,7 @@ class MultiheadSelfAttention(nn.Module):
         
         x = x.transpose(0,1)		
         print(is_pad.size())
-        x, _ = self.attention(x, x, x, key_padding_mask = None, need_weights=False) 
+        x, _ = self.attention(x, x, x, key_padding_mask = is_pad, need_weights=False) 
 
         x = x.transpose(0,1) ## shape (batch_size, text_len, input_dim)		
         x = self.dropout(x) + skip_connection

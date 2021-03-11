@@ -58,6 +58,11 @@ class BiDAF(nn.Module):
         #self.att = layers.BiDAFAttention(hidden_size=hidden_size,
         #                                 drop_prob=drop_prob)
 
+        self.pre_satt = nn.Linear(8 * hidden_size, hidden_size)
+
+        self.post_satt = nn.Linear(hidden_size, 8 * hidden_size)
+
+
         self.self_att = new_layers.MultiheadSelfAttention(n_embd=hidden_size * 8,
                                                           n_head=2,
                                                           drop_prob=drop_prob)
@@ -74,6 +79,10 @@ class BiDAF(nn.Module):
     def forward(self, cw_idxs, qw_idxs, cc_idxs, qc_idxs):
         c_mask = torch.zeros_like(cw_idxs) != cw_idxs
         q_mask = torch.zeros_like(qw_idxs) != qw_idxs
+
+        c_is_pad = torch.zeros_like(cw_idxs) == cw_idxs ## shape (batch_size, c_len)
+        q_is_pad = torch.zeros_like(qw_idxs) == qw_idxs ## shape (batch_size, q_len)
+
         c_len, q_len = c_mask.sum(-1), q_mask.sum(-1)
 
         #c_emb = self.emb(cw_idxs)         # (batch_size, c_len, hidden_size)
@@ -108,14 +117,19 @@ class BiDAF(nn.Module):
         
         #print("att is")
         #print(att)
+
+        att = self.pre_satt(att)    # (batch_size, c_len, hidden_size)
+
         att_mask = torch.zeros_like(att) != att
-        self_att = self.self_att(att, att_mask)
+        self_att = self.self_att(att, c_is_pad)
 
         att_mask = torch.zeros_like(self_att) != self_att
-        self_att2 = self.self_att(self_att, att_mask)
+        self_att2 = self.self_att(self_att, c_is_pad)
 
         att_mask = torch.zeros_like(self_att2) != self_att2
-        self_att3 = self.self_att(self_att2, att_mask)
+        self_att3 = self.self_att(self_att2, c_is_pad)
+
+        self_att3 = self.pre_satt(att)       # (batch_size, c_len, 8 * hidden_size)
 
         mod = self.mod(self_att3, c_len)        # (batch_size, c_len, 2 * hidden_size)
 
