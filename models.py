@@ -109,9 +109,15 @@ class BiDAF(nn.Module):
         #print("att is")
         #print(att)
         att_mask = torch.zeros_like(att) != att
-        att = self.self_att(att, att_mask)
+        self_att = self.self_att(att, att_mask)
 
-        mod = self.mod(att, c_len)        # (batch_size, c_len, 2 * hidden_size)
+        att_mask = torch.zeros_like(self_att) != self_att
+        self_att2 = self.self_att(self_att, att_mask)
+
+        att_mask = torch.zeros_like(self_att2) != self_att2
+        self_att3 = self.self_att(self_att2, att_mask)
+
+        mod = self.mod(self_att3, c_len)        # (batch_size, c_len, 2 * hidden_size)
 
         out = self.out(att, mod, c_mask)  # 2 tensors, each (batch_size, c_len)
         #print("out is")
