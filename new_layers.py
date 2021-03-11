@@ -10,6 +10,39 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+class FeedForward(nn.Module):
+	"""Feed forward layer with ReLU activation.
+	Input is first passed through LayerNorm, then a linear layer, then non-linear activation, then another linear layer.
+	A skip connection is added at the end.
+	
+	Arguments:
+	input_dim (int): Dimension of each (non-batched) input vector.
+	p_dropout: Dropout rate.
+	"""
+	def __init__(self, input_dim, p_dropout):
+		super(FeedForward, self).__init__()
+		
+		self.linear1 = nn.Linear(input_dim, input_dim)
+		self.linear2 = nn.Linear(input_dim, input_dim)
+		self.dropout = nn.Dropout(p_dropout)
+		
+		## Layer normalization across the features, i.e. across the last dimension that is equal to input_dim
+		self.layernorm = nn.LayerNorm(input_dim)
+	def forward(self, x):
+		"""
+		x: input tensor of shape (batch_size, text_len, input_dim).
+		The shape stays the same (batch_size, text_len, input_dim) through every step.		
+		"""
+		skip_connection = x
+		
+		x = self.layernorm(x)
+		x = self.linear1(x)
+		x = F.relu(x)
+		x = self.linear2(x)
+		
+		return self.dropout(x) + skip_connection
+
+
 class MultiheadSelfAttention(nn.Module):
     """
     Ref Assignment 5
@@ -32,6 +65,7 @@ class MultiheadSelfAttention(nn.Module):
         self.attn_drop = nn.Dropout(drop_prob)
         self.resid_drop = nn.Dropout(drop_prob)
         print("finished reg")
+        
         # output projection
         self.proj = nn.Linear(n_embd, n_embd)
         # causal mask to ensure that attention is only applied to the left in the input sequence
@@ -50,6 +84,7 @@ class MultiheadSelfAttention(nn.Module):
 
         ## Layer normalization across the features, i.e. across the last dimension that is equal to input_dim
         self.layernorm = nn.LayerNorm(n_embd)
+        self.feedfwd = FeedForward(n_embd, 0.1)
     def forward(self, x, is_pad):
 
 #    def forward(self, x, layer_past=None):
@@ -89,7 +124,7 @@ class MultiheadSelfAttention(nn.Module):
         
         x = x.transpose(0,1)		
         #print(x.size())
-        x, _ = self.attention(x, x, x, key_padding_mask = None, need_weights=False) 
+        x, _ = self.attention(x, x, x, key_padding_mask = is_pad, need_weights=False) 
 
         x = x.transpose(0,1) ## shape (batch_size, text_len, input_dim)		
         x = self.dropout(x) + skip_connection
@@ -97,6 +132,7 @@ class MultiheadSelfAttention(nn.Module):
 
         #x =  self.resize(x)
         #print(x.size())
+        x = self.feedfwd(x)
         return x
 
 
