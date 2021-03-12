@@ -63,11 +63,11 @@ class BiDAF(nn.Module):
         self.post_satt = nn.Linear(hidden_size, 8 * hidden_size)
 
 
-        self.self_att = new_layers.MultiheadSelfAttention(n_embd=hidden_size * 8,
+        self.self_att = new_layers.MultiheadSelfAttention(n_embd=hidden_size,
                                                           n_head=2,
                                                           drop_prob=drop_prob)
 
-        self.mod = layers.RNNEncoder(input_size=8 * hidden_size,
+        self.mod = layers.RNNEncoder(input_size = 8 * hidden_size,
                                      hidden_size=hidden_size,
                                      num_layers=2,
                                      drop_prob=drop_prob)
@@ -118,10 +118,10 @@ class BiDAF(nn.Module):
         #print("att is")
         #print(att)
 
-        att = self.pre_satt(att)    # (batch_size, c_len, hidden_size)
+        att_prelim = self.pre_satt(att)    # (batch_size, c_len, hidden_size)
 
         att_mask = torch.zeros_like(att) != att
-        self_att = self.self_att(att, c_is_pad)
+        self_att = self.self_att(att_prelim, c_is_pad)
 
         att_mask = torch.zeros_like(self_att) != self_att
         self_att2 = self.self_att(self_att, c_is_pad)
@@ -129,10 +129,14 @@ class BiDAF(nn.Module):
         att_mask = torch.zeros_like(self_att2) != self_att2
         self_att3 = self.self_att(self_att2, c_is_pad)
 
-        self_att3 = self.pre_satt(att)       # (batch_size, c_len, 8 * hidden_size)
+        self_att3 = self.post_satt(self_att3)       # (batch_size, c_len, 8 * hidden_size)
+        #print("size of self att3")
+        #print(self_att3.size())
 
         mod = self.mod(self_att3, c_len)        # (batch_size, c_len, 2 * hidden_size)
-
+        #print("size of mod")
+        #print(mod.size())
+        
         out = self.out(att, mod, c_mask)  # 2 tensors, each (batch_size, c_len)
         #print("out is")
         #print(out)

@@ -130,7 +130,7 @@ class MultiheadSelfAttention(nn.Module):
         ## Here transpose() is needed because of the convention of nn.MultiheadAttention.
         
         x = x.transpose(0,1)		
-        print(is_pad.size())
+        # print(is_pad.size())
         x, _ = self.attention(x, x, x, key_padding_mask = is_pad, need_weights=False) 
 
         x = x.transpose(0,1) ## shape (batch_size, text_len, input_dim)		
