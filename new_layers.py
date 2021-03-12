@@ -51,7 +51,8 @@ class MultiheadSelfAttention(nn.Module):
     is all but absent and code ugly so I don't trust it, rolling my own here.
     """
 
-    def __init__(self, n_embd, n_head, drop_prob=0.1, num_convs=4, kernel_size=3, block_index, num_blocks):
+    def __init__(self, n_embd, n_head, drop_prob=0.1, num_convs=4, kernel_size=3, block_index=1, num_blocks=1):
+        #print(num_blocks)
         '''
         super().__init__()
         # key, query, value projections for all heads
