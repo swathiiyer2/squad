@@ -47,6 +47,17 @@ class BiDAF(nn.Module):
                                     hidden_size=hidden_size,
                                     drop_prob=drop_prob)
 
+        self.context_enc_blocks = nn.ModuleList([
+            new_layers.MultiheadSelfAttention(n_embd=hidden_size, n_head=2, drop_prob=drop_prob)
+            for block_index in range(1)])
+
+        self.question_enc_blocks = nn.ModuleList([
+            new_layers.MultiheadSelfAttention(n_embd=hidden_size, n_head=2, drop_prob=drop_prob)
+            for block_index in range(1)])
+
+        self.post_c_enc = nn.Linear(hidden_size, 2 * hidden_size)
+        self.post_q_enc = nn.Linear(hidden_size, 2 * hidden_size)
+
         self.enc = layers.RNNEncoder(input_size=hidden_size,
                                      hidden_size=hidden_size,
                                      num_layers=1,
@@ -62,21 +73,6 @@ class BiDAF(nn.Module):
 
         self.post_satt = nn.Linear(hidden_size, 8 * hidden_size)
 
-        '''
-
-        self.self_att1 = new_layers.MultiheadSelfAttention(n_embd=hidden_size,
-                                                          n_head=2,
-                                                          drop_prob=drop_prob)
-
-        self.self_att2 = new_layers.MultiheadSelfAttention(n_embd=hidden_size,
-                                                          n_head=2,
-                                                          drop_prob=drop_prob)
-
-        self.self_att3 = new_layers.MultiheadSelfAttention(n_embd=hidden_size,
-                                                          n_head=2,
-                                                          drop_prob=drop_prob)
-
-        '''
         self.self_attn_blocks = nn.ModuleList([
             new_layers.MultiheadSelfAttention(n_embd=hidden_size, n_head=2, drop_prob=drop_prob)
             for block_index in range(3)])
@@ -111,9 +107,20 @@ class BiDAF(nn.Module):
         c_emb = self.emb(cw_idxs, cc_idxs)   # (batch_size, c_len, hidden_size)
         q_emb = self.emb(qw_idxs, qc_idxs)  # (batch_size, q_len, hidden_size)
         
+        c_enc = c_emb
+        q_enc = q_emb
 
-        c_enc = self.enc(c_emb, c_len)    # (batch_size, c_len, 2 * hidden_size)
-        q_enc = self.enc(q_emb, q_len)    # (batch_size, q_len, 2 * hidden_size)
+        for c_enc_blk in self.context_enc_blocks:  # (batch_size, c_len, hidden_size)
+            c_enc = c_enc_blk(c_enc, c_is_pad)
+
+        for q_enc_blk in self.question_enc_blocks:   # (batch_size, q_len, hidden_size)
+            q_enc = q_enc_blk(c_enc, c_is_pad)
+
+        c_enc = self.post_c_enc(c_enc)
+        q_enc = self.post_q_enc(q_enc)
+
+        #c_enc = self.enc(c_emb, c_len)    # (batch_size, c_len, 2 * hidden_size)
+        #q_enc = self.enc(q_emb, q_len)    # (batch_size, q_len, 2 * hidden_size)
 
         #print("c_emb is")
         #print(c_emb)
@@ -133,17 +140,6 @@ class BiDAF(nn.Module):
         #print(att)
 
         self_attn = self.pre_satt(att)    # (batch_size, c_len, hidden_size)
-
-        '''
-        self_att = self.self_att1(att_prelim, c_is_pad)
-
-        
-        self_att2 = self.self_att2(self_att, c_is_pad)
-
-        
-        self_att3 = self.self_att3(self_att2, c_is_pad)
-        '''
-
 
         for self_att in self.self_attn_blocks:
             self_attn = self_att(self_attn, c_is_pad)
