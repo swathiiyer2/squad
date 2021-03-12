@@ -81,7 +81,7 @@ class MultiheadSelfAttention(nn.Module):
         self.n_embd = n_embd
 
         #Each layer of our separatable convolution
-        self.convs = DepthwiseSeparableCNN(input_dim, kernel_size, 0.1 )
+        self.convs = DepthwiseSeparableCNN(n_embd, kernel_size, 0.1 )
 					     
 
         self.attention = nn.MultiheadAttention(n_embd, n_head)
@@ -270,7 +270,8 @@ class DepthwiseSeparableCNN(nn.Module):
 	p_dropout (float): Dropout rate.
 	"""
 	def __init__(self, input_dim, kernel_size, p_dropout):
-		super(DepthwiseSeparableConvolution, self).__init__()
+		super(DepthwiseSeparableCNN, self).__init__()
+                
 		
 		## Depthwise convolution layer.
 		## Padding size is set to kernel_size // 2. This would guarantee that 
