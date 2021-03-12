@@ -114,7 +114,7 @@ class BiDAF(nn.Module):
             c_enc = c_enc_blk(c_enc, c_is_pad)
 
         for q_enc_blk in self.question_enc_blocks:   # (batch_size, q_len, hidden_size)
-            q_enc = q_enc_blk(c_enc, c_is_pad)
+            q_enc = q_enc_blk(q_enc, q_is_pad)
 
         c_enc = self.post_c_enc(c_enc)
         q_enc = self.post_q_enc(q_enc)
