@@ -292,6 +292,23 @@ class DepthwiseSeparableCNN(nn.Module):
 		
 		self.dropout = nn.Dropout(p_dropout)
 
+    def forward(self, x):
+		"""
+		x: input tensor of shape (batch_size, text_len, input_dim).
+			Here text_len is the length of the context/question.
+		The shape stays the same (batch_size, text_len, input_dim) through every step.
+		"""
+		skip_connection = x
+		x = self.layernorm(x)
+		
+		## Call transpose(1,2) back and forth because nn.Conv1D requires the number of input channels to be
+		## the MIDDLE dimension.
+		x = self.depthwise(x.transpose(1,2)).transpose(1,2)
+		
+		x = self.pointwise(x)		
+		x = F.leaky_relu(x)
+		return self.dropout(x) + skip_connection
+
 class HighwayEncoderChar(nn.Module):
     """ Highway Networks6 have a skip-connection controlled by a dynamic gate """
 
