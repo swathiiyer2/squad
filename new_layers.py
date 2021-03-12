@@ -51,7 +51,7 @@ class MultiheadSelfAttention(nn.Module):
     is all but absent and code ugly so I don't trust it, rolling my own here.
     """
 
-    def __init__(self, n_embd, n_head, drop_prob=0.1, num_convs=4, kernel_size=3):
+    def __init__(self, n_embd, n_head, drop_prob=0.1, num_convs=4, kernel_size=3, block_index, num_blocks):
         '''
         super().__init__()
         # key, query, value projections for all heads
@@ -77,19 +77,30 @@ class MultiheadSelfAttention(nn.Module):
 '''
 
         super(MultiheadSelfAttention, self).__init__()
+
+        layers_per_block = 3 + num_convs
+
+        L = layers_per_block*num_blocks
+
+        l = 1 + layers_per_block*block_index
+
+        #Each layer of our separatable convolution
+        self.convs = nn.Sequential(*[DepthwiseSeparableCNN(n_embd, kernel_size, (l + i) * 0.1/L )
+                         for i in range(1,1+num_convs)])
+
         self.resize = nn.Linear(n_embd, 2 * n_embd)
         self.n_embd = n_embd
 
-        #Each layer of our separatable convolution
-        self.convs = DepthwiseSeparableCNN(n_embd, kernel_size, 0.1 )
+        
+        # self.convs = DepthwiseSeparableCNN(n_embd, kernel_size, 0.1 )
                          
 
-        self.attention = nn.MultiheadAttention(n_embd, n_head)
+        self.attention = nn.MultiheadAttention(n_embd, n_head, (l + 1 + num_convs)*0.1/L)
         self.dropout = nn.Dropout(drop_prob)
 
         ## Layer normalization across the features, i.e. across the last dimension that is equal to input_dim
         self.layernorm = nn.LayerNorm(n_embd)
-        self.feedfwd = FeedForward(n_embd, 0.1)
+        self.feedfwd = FeedForward(n_embd, (l + 1 + num_convs)*0.1/L)
     def forward(self, x, is_pad):
 
 #    def forward(self, x, layer_past=None):

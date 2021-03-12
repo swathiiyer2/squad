@@ -48,11 +48,13 @@ class BiDAF(nn.Module):
                                     drop_prob=drop_prob)
 
         self.context_enc_blocks = nn.ModuleList([
-            new_layers.MultiheadSelfAttention(n_embd=hidden_size, n_head=2, drop_prob=drop_prob)
+            new_layers.MultiheadSelfAttention(n_embd=hidden_size, n_head=8, drop_prob=drop_prob, 
+                                    block_index=block_index, num_blocks=1)
             for block_index in range(1)])
 
         self.question_enc_blocks = nn.ModuleList([
-            new_layers.MultiheadSelfAttention(n_embd=hidden_size, n_head=2, drop_prob=drop_prob)
+            new_layers.MultiheadSelfAttention(n_embd=hidden_size, n_head=8, drop_prob=drop_prob, 
+                                    block_index=block_index, num_blocks=1)
             for block_index in range(1)])
 
         self.post_c_enc = nn.Linear(hidden_size, 2 * hidden_size)
@@ -74,8 +76,9 @@ class BiDAF(nn.Module):
         self.post_satt = nn.Linear(hidden_size, 8 * hidden_size)
 
         self.self_attn_blocks = nn.ModuleList([
-            new_layers.MultiheadSelfAttention(n_embd=hidden_size, n_head=2, drop_prob=drop_prob)
-            for block_index in range(3)])
+            new_layers.MultiheadSelfAttention(n_embd=hidden_size, n_head=8, drop_prob=drop_prob, 
+                                    block_index=block_index, num_blocks=6)
+            for block_index in range(6)])
 
         self.mod = layers.RNNEncoder(input_size = 8 * hidden_size,
                                      hidden_size=hidden_size,
