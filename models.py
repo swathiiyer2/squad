@@ -62,6 +62,7 @@ class BiDAF(nn.Module):
 
         self.post_satt = nn.Linear(hidden_size, 8 * hidden_size)
 
+        '''
 
         self.self_att1 = new_layers.MultiheadSelfAttention(n_embd=hidden_size,
                                                           n_head=2,
@@ -75,6 +76,7 @@ class BiDAF(nn.Module):
                                                           n_head=2,
                                                           drop_prob=drop_prob)
 
+        '''
         self.self_attn_blocks = nn.ModuleList([
             new_layers.MultiheadSelfAttention(n_embd=hidden_size, n_head=2, drop_prob=drop_prob)
             for block_index in range(3)])
@@ -144,7 +146,7 @@ class BiDAF(nn.Module):
 
 
         for self_att in self.self_attn_blocks:
-            self_attn = self_att(x, c_is_pad)
+            self_attn = self_att(self_attn, c_is_pad)
 
         self_attn = self.post_satt(self_attn)       # (batch_size, c_len, 8 * hidden_size)
         #print("size of self att3")
