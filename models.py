@@ -155,7 +155,7 @@ class BiDAF(nn.Module):
         #print("size of mod")
         #print(mod.size())
         
-        out = self.out(att, mod, c_mask)  # 2 tensors, each (batch_size, c_len)
+        out = self.out(self_attn, mod, c_mask)  # 2 tensors, each (batch_size, c_len)
         #print("out is")
         #print(out)
         return out
