@@ -51,7 +51,7 @@ class MultiheadSelfAttention(nn.Module):
     is all but absent and code ugly so I don't trust it, rolling my own here.
     """
 
-    def __init__(self, n_embd, n_head, drop_prob=0.1):
+    def __init__(self, n_embd, n_head, drop_prob=0.1, num_convs=4, kernel_size=3):
         '''
         super().__init__()
         # key, query, value projections for all heads
@@ -79,6 +79,11 @@ class MultiheadSelfAttention(nn.Module):
         super(MultiheadSelfAttention, self).__init__()
         self.resize = nn.Linear(n_embd, 2 * n_embd)
         self.n_embd = n_embd
+
+        #Each layer of our separatable convolution
+        self.convs = DepthwiseSeparableCNN(input_dim, kernel_size, 0.1 )
+					     
+
         self.attention = nn.MultiheadAttention(n_embd, n_head)
         self.dropout = nn.Dropout(drop_prob)
 
@@ -115,6 +120,8 @@ class MultiheadSelfAttention(nn.Module):
         is_pad: tensor of shape(batch_size, text_len). Hold value TRUE for pad tokens. 
         Output: tensor of the same shape as the input, (batch_size, text_len, input_dim)
         '''
+        x = self.convs(x) ## shape (batch_size, text_len, input_dim)
+
         skip_connection = x
 
         x = self.layernorm(x) ## shape (batch_size, text_len, input_dim)
@@ -246,6 +253,43 @@ class CNN(nn.Module):
         # (batch size, word embedding size)
 
         return x_conv_out
+
+class DepthwiseSeparableCNN(nn.Module):
+	"""Depthwise Separable Convolutional Layer used in QANet encoder block
+	Illustration for depthwise separable convolution:
+	https://towardsdatascience.com/a-basic-introduction-to-separable-convolutions-b99ec3102728
+	Input is first passed through LayerNorm, then a Depthwise Separable Convolutional Layer.
+	Leakly ReLU activation is applied and a skip connection is added at the end.		
+	
+	Arguments:
+	input_dim (int): Dimension of each (non-batched) input vector.
+		In the Conv1D documentation, this is referred to as the number of input channels. 	
+	kernel_size (int): Kernel size.
+		Expected to be an odd number so that the output has the same shape as the input,
+		otherwise the skip connection doesn't make sense.
+	p_dropout (float): Dropout rate.
+	"""
+	def __init__(self, input_dim, kernel_size, p_dropout):
+		super(DepthwiseSeparableConvolution, self).__init__()
+		
+		## Depthwise convolution layer.
+		## Padding size is set to kernel_size // 2. This would guarantee that 
+		##	(1) the kernel is never too big, and
+		##	(2) the output text_len is the same as the input text_len.
+		## Bias is set to False because we will add bias in the pointwise convolution layer.
+		self.depthwise = nn.Conv1d(input_dim, input_dim, kernel_size, padding = kernel_size // 2,
+					   groups = input_dim, bias = False)
+		
+		## Pointwise convolution layer
+		## We use nn.Linear instead of nn.Conv1D with kernel size 1 - they do the same thing
+		## We are setting output_dim to be equal to input_dim even though it doesn't have to be in general.
+		## This is so that a skip connection can be used.
+		self.pointwise = nn.Linear(input_dim, input_dim)
+		
+		## Layer normalization across the features, i.e. across the last dimension that is equal to input_dim
+		self.layernorm = nn.LayerNorm(input_dim)
+		
+		self.dropout = nn.Dropout(p_dropout)
 
 class HighwayEncoderChar(nn.Module):
     """ Highway Networks6 have a skip-connection controlled by a dynamic gate """
