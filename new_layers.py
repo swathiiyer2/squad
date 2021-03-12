@@ -11,36 +11,36 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class FeedForward(nn.Module):
-	"""Feed forward layer with ReLU activation.
-	Input is first passed through LayerNorm, then a linear layer, then non-linear activation, then another linear layer.
-	A skip connection is added at the end.
-	
-	Arguments:
-	input_dim (int): Dimension of each (non-batched) input vector.
-	p_dropout: Dropout rate.
-	"""
-	def __init__(self, input_dim, p_dropout):
-		super(FeedForward, self).__init__()
-		
-		self.linear1 = nn.Linear(input_dim, input_dim)
-		self.linear2 = nn.Linear(input_dim, input_dim)
-		self.dropout = nn.Dropout(p_dropout)
-		
-		## Layer normalization across the features, i.e. across the last dimension that is equal to input_dim
-		self.layernorm = nn.LayerNorm(input_dim)
-	def forward(self, x):
-		"""
-		x: input tensor of shape (batch_size, text_len, input_dim).
-		The shape stays the same (batch_size, text_len, input_dim) through every step.		
-		"""
-		skip_connection = x
-		
-		x = self.layernorm(x)
-		x = self.linear1(x)
-		x = F.relu(x)
-		x = self.linear2(x)
-		
-		return self.dropout(x) + skip_connection
+    """Feed forward layer with ReLU activation.
+    Input is first passed through LayerNorm, then a linear layer, then non-linear activation, then another linear layer.
+    A skip connection is added at the end.
+    
+    Arguments:
+    input_dim (int): Dimension of each (non-batched) input vector.
+    p_dropout: Dropout rate.
+    """
+    def __init__(self, input_dim, p_dropout):
+        super(FeedForward, self).__init__()
+        
+        self.linear1 = nn.Linear(input_dim, input_dim)
+        self.linear2 = nn.Linear(input_dim, input_dim)
+        self.dropout = nn.Dropout(p_dropout)
+        
+        ## Layer normalization across the features, i.e. across the last dimension that is equal to input_dim
+        self.layernorm = nn.LayerNorm(input_dim)
+    def forward(self, x):
+        """
+        x: input tensor of shape (batch_size, text_len, input_dim).
+        The shape stays the same (batch_size, text_len, input_dim) through every step.        
+        """
+        skip_connection = x
+        
+        x = self.layernorm(x)
+        x = self.linear1(x)
+        x = F.relu(x)
+        x = self.linear2(x)
+        
+        return self.dropout(x) + skip_connection
 
 
 class MultiheadSelfAttention(nn.Module):
@@ -82,7 +82,7 @@ class MultiheadSelfAttention(nn.Module):
 
         #Each layer of our separatable convolution
         self.convs = DepthwiseSeparableCNN(n_embd, kernel_size, 0.1 )
-					     
+                         
 
         self.attention = nn.MultiheadAttention(n_embd, n_head)
         self.dropout = nn.Dropout(drop_prob)
@@ -129,11 +129,11 @@ class MultiheadSelfAttention(nn.Module):
         ## shape (text_len, batch_size, input_dim).
         ## Here transpose() is needed because of the convention of nn.MultiheadAttention.
         
-        x = x.transpose(0,1)		
+        x = x.transpose(0,1)        
         # print(is_pad.size())
         x, _ = self.attention(x, x, x, key_padding_mask = is_pad, need_weights=False) 
 
-        x = x.transpose(0,1) ## shape (batch_size, text_len, input_dim)		
+        x = x.transpose(0,1) ## shape (batch_size, text_len, input_dim)        
         x = self.dropout(x) + skip_connection
         #ll = nn.Linear(self.n_embd, 2 * self.n_embd)
 
@@ -255,59 +255,59 @@ class CNN(nn.Module):
         return x_conv_out
 
 class DepthwiseSeparableCNN(nn.Module):
-	"""Depthwise Separable Convolutional Layer used in QANet encoder block
-	Illustration for depthwise separable convolution:
-	https://towardsdatascience.com/a-basic-introduction-to-separable-convolutions-b99ec3102728
-	Input is first passed through LayerNorm, then a Depthwise Separable Convolutional Layer.
-	Leakly ReLU activation is applied and a skip connection is added at the end.		
-	
-	Arguments:
-	input_dim (int): Dimension of each (non-batched) input vector.
-		In the Conv1D documentation, this is referred to as the number of input channels. 	
-	kernel_size (int): Kernel size.
-		Expected to be an odd number so that the output has the same shape as the input,
-		otherwise the skip connection doesn't make sense.
-	p_dropout (float): Dropout rate.
-	"""
-	def __init__(self, input_dim, kernel_size, p_dropout):
-		super(DepthwiseSeparableCNN, self).__init__()
+    """Depthwise Separable Convolutional Layer used in QANet encoder block
+    Illustration for depthwise separable convolution:
+    https://towardsdatascience.com/a-basic-introduction-to-separable-convolutions-b99ec3102728
+    Input is first passed through LayerNorm, then a Depthwise Separable Convolutional Layer.
+    Leakly ReLU activation is applied and a skip connection is added at the end.        
+    
+    Arguments:
+    input_dim (int): Dimension of each (non-batched) input vector.
+        In the Conv1D documentation, this is referred to as the number of input channels.     
+    kernel_size (int): Kernel size.
+        Expected to be an odd number so that the output has the same shape as the input,
+        otherwise the skip connection doesn't make sense.
+    p_dropout (float): Dropout rate.
+    """
+    def __init__(self, input_dim, kernel_size, p_dropout):
+        super(DepthwiseSeparableCNN, self).__init__()
                 
-		
-		## Depthwise convolution layer.
-		## Padding size is set to kernel_size // 2. This would guarantee that 
-		##	(1) the kernel is never too big, and
-		##	(2) the output text_len is the same as the input text_len.
-		## Bias is set to False because we will add bias in the pointwise convolution layer.
-		self.depthwise = nn.Conv1d(input_dim, input_dim, kernel_size, padding = kernel_size // 2,
-					   groups = input_dim, bias = False)
-		
-		## Pointwise convolution layer
-		## We use nn.Linear instead of nn.Conv1D with kernel size 1 - they do the same thing
-		## We are setting output_dim to be equal to input_dim even though it doesn't have to be in general.
-		## This is so that a skip connection can be used.
-		self.pointwise = nn.Linear(input_dim, input_dim)
-		
-		## Layer normalization across the features, i.e. across the last dimension that is equal to input_dim
-		self.layernorm = nn.LayerNorm(input_dim)
-		
-		self.dropout = nn.Dropout(p_dropout)
+        
+        ## Depthwise convolution layer.
+        ## Padding size is set to kernel_size // 2. This would guarantee that 
+        ##    (1) the kernel is never too big, and
+        ##    (2) the output text_len is the same as the input text_len.
+        ## Bias is set to False because we will add bias in the pointwise convolution layer.
+        self.depthwise = nn.Conv1d(input_dim, input_dim, kernel_size, padding = kernel_size // 2,
+                       groups = input_dim, bias = False)
+        
+        ## Pointwise convolution layer
+        ## We use nn.Linear instead of nn.Conv1D with kernel size 1 - they do the same thing
+        ## We are setting output_dim to be equal to input_dim even though it doesn't have to be in general.
+        ## This is so that a skip connection can be used.
+        self.pointwise = nn.Linear(input_dim, input_dim)
+        
+        ## Layer normalization across the features, i.e. across the last dimension that is equal to input_dim
+        self.layernorm = nn.LayerNorm(input_dim)
+    
+        self.dropout = nn.Dropout(p_dropout)
 
     def forward(self, x):
-		"""
-		x: input tensor of shape (batch_size, text_len, input_dim).
-			Here text_len is the length of the context/question.
-		The shape stays the same (batch_size, text_len, input_dim) through every step.
-		"""
-		skip_connection = x
-		x = self.layernorm(x)
-		
-		## Call transpose(1,2) back and forth because nn.Conv1D requires the number of input channels to be
-		## the MIDDLE dimension.
-		x = self.depthwise(x.transpose(1,2)).transpose(1,2)
-		
-		x = self.pointwise(x)		
-		x = F.leaky_relu(x)
-		return self.dropout(x) + skip_connection
+        """
+        x: input tensor of shape (batch_size, text_len, input_dim).
+            Here text_len is the length of the context/question.
+        The shape stays the same (batch_size, text_len, input_dim) through every step.
+        """
+        skip_connection = x
+        x = self.layernorm(x)
+        
+        ## Call transpose(1,2) back and forth because nn.Conv1D requires the number of input channels to be
+        ## the MIDDLE dimension.
+        x = self.depthwise(x.transpose(1,2)).transpose(1,2)
+        
+        x = self.pointwise(x)        
+        x = F.leaky_relu(x)
+        return self.dropout(x) + skip_connection
 
 class HighwayEncoderChar(nn.Module):
     """ Highway Networks6 have a skip-connection controlled by a dynamic gate """
