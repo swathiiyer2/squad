@@ -337,3 +337,38 @@ class HighwayEncoderChar(nn.Module):
         x = g * x_conv_out + (1 - g) * x_conv_out
 
         return x
+
+class ModOutput(nn.Module):
+    """Output layer used by QANet for question answering.
+    Args:
+        hidden_size (int): Hidden size used in the model.
+    """
+    def __init__(self, hidden_size):
+        super(QANetOutput, self).__init__()
+        
+        self.proj01 = nn.Parameter(torch.empty(hidden_size, 1))
+        nn.init.xavier_uniform_(self.proj01)
+        self.proj11 = nn.Parameter(torch.empty(hidden_size, 1))
+        nn.init.xavier_uniform_(self.proj11)
+        self.proj02 = nn.Parameter(torch.empty(hidden_size, 1))
+        nn.init.xavier_uniform_(self.proj02)
+        self.proj22 = nn.Parameter(torch.empty(hidden_size, 1))
+        nn.init.xavier_uniform_(self.proj22)
+        
+        self.bias1 = nn.Parameter(torch.zeros(1))
+        self.bias2 = nn.Parameter(torch.zeros(1))
+    def forward(self, M0, M1, M2, is_pad):
+    	"""
+    	M0, M1, M2: tensors of shape (batch_size, text_len, hidden_size)
+    	is_pad: tensor of shape(batch_size, text_len). Hold value TRUE for pad tokens.
+    	
+    	This method applies linear projections separately instead of concatenating the input tensors to save a little memory.
+    	"""
+    	A1 = torch.matmul(M0, self.proj01) + torch.matmul(M1, self.proj11) + self.bias1 ## shape (batch_size, text_len, 1)
+    	A2 = torch.matmul(M0, self.proj02) + torch.matmul(M2, self.proj22) + self.bias2 ## shape (batch_size, text_len, 1)
+    	
+    	# Shapes: (batch_size, text_len)
+    	log_p1 = masked_softmax(A1.squeeze(dim=2), is_pad, log_softmax=True)
+    	log_p2 = masked_softmax(A2.squeeze(dim=2), is_pad, log_softmax=True)
+    	
+    	return log_p1, log_p2

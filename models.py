@@ -85,8 +85,7 @@ class BiDAF(nn.Module):
                                      num_layers=2,
                                      drop_prob=drop_prob)
 
-        self.out = layers.BiDAFOutput(hidden_size=hidden_size,
-                                      drop_prob=drop_prob)
+        self.out = new_layers.ModOutput(hidden_size=hidden_size)
 
     #def forward(self, cw_idxs, qw_idxs):
     def forward(self, cw_idxs, qw_idxs, cc_idxs, qc_idxs):
@@ -147,15 +146,26 @@ class BiDAF(nn.Module):
         for self_att in self.self_attn_blocks:
             self_attn = self_att(self_attn, c_is_pad)
 
-        self_attn = self.post_satt(self_attn)       # (batch_size, c_len, 8 * hidden_size)
+        self_attn1 = self_attn       # (batch_size, c_len, 8 * hidden_size)
         #print("size of self att3")
         #print(self_att3.size())
 
-        mod = self.mod(self_attn, c_len)        # (batch_size, c_len, 2 * hidden_size)
+        for self_att in self.self_attn_blocks:
+            self_attn = self_att(self_attn, c_is_pad)
+
+        self_attn2 = self_attn       # (batch_size, c_len, 8 * hidden_size)
+
+        for self_att in self.self_attn_blocks:
+            self_attn = self_att(self_attn, c_is_pad)
+
+        self_attn3 = self_attn       # (batch_size, c_len, 8 * hidden_size)
+
+        #mod = self.mod(self_attn, c_len)        # (batch_size, c_len, 2 * hidden_size)
         #print("size of mod")
         #print(mod.size())
         
-        out = self.out(self_attn, mod, c_mask)  # 2 tensors, each (batch_size, c_len)
+        out = self.output(self_attn1, self_attn2, self_att3, c_is_pad) ## 2 tensors, each (batch_size, c_len)
+        #out = self.out(self_attn, mod, c_mask)  # 2 tensors, each (batch_size, c_len)
         #print("out is")
         #print(out)
         return out
