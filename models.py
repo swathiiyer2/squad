@@ -42,8 +42,7 @@ class BiDAF(nn.Module):
     def __init__(self, word_vectors, char_vectors, hidden_size, drop_prob=0.):
         super(BiDAF, self).__init__()
 
-        self.emb = new_layers.EmbeddingWithChar(word_vectors=word_vectors,
-                                    char_vectors=char_vectors,
+        self.emb = new_layers.WordAndCharEmbedding(char_vectors=char_vectors, word_vectors=word_vectors,
                                     hidden_size=hidden_size,
                                     drop_prob=drop_prob)
 
@@ -164,7 +163,7 @@ class BiDAF(nn.Module):
         #print("size of mod")
         #print(mod.size())
         
-        out = self.output(self_attn1, self_attn2, self_att3, c_is_pad) ## 2 tensors, each (batch_size, c_len)
+        out = self.out(self_attn1, self_attn2, self_attn3, c_is_pad) ## 2 tensors, each (batch_size, c_len)
         #out = self.out(self_attn, mod, c_mask)  # 2 tensors, each (batch_size, c_len)
         #print("out is")
         #print(out)

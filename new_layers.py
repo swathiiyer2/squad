@@ -3,44 +3,36 @@ Author:
     Chris Chute (chute@stanford.edu)
 """
 
-from layers import Embedding as WordEmbedding
+from layers import Embedding as WordEmbeddings
 
 import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-class FeedForward(nn.Module):
-    """Feed forward layer with ReLU activation.
-    Input is first passed through LayerNorm, then a linear layer, then non-linear activation, then another linear layer.
-    A skip connection is added at the end.
-    
-    Arguments:
-    input_dim (int): Dimension of each (non-batched) input vector.
-    p_dropout: Dropout rate.
-    """
-    def __init__(self, input_dim, p_dropout):
-        super(FeedForward, self).__init__()
+from util import masked_softmax
+
+class FForward(nn.Module):
+
+    def __init__(self, embed_dim, dropout_rate):
+        super(FForward, self).__init__()
         
-        self.linear1 = nn.Linear(input_dim, input_dim)
-        self.linear2 = nn.Linear(input_dim, input_dim)
-        self.dropout = nn.Dropout(p_dropout)
+        #added layernorm for compatability across our last dimension  
+        self.layer_norm = nn.LayerNorm(embed_dim)
+
+        self.enter_linear = nn.Linear(embed_dim, embed_dim)
+        self.exit_linear = nn.Linear(embed_dim, embed_dim)
+        self.dropout = nn.Dropout(dropout_rate)
         
-        ## Layer normalization across the features, i.e. across the last dimension that is equal to input_dim
-        self.layernorm = nn.LayerNorm(input_dim)
+        
     def forward(self, x):
-        """
-        x: input tensor of shape (batch_size, text_len, input_dim).
-        The shape stays the same (batch_size, text_len, input_dim) through every step.        
-        """
-        skip_connection = x
+
+        x_copy = x # shape: (batch_size, text_len, input_dim)
         
-        x = self.layernorm(x)
-        x = self.linear1(x)
-        x = F.relu(x)
-        x = self.linear2(x)
+        x = self.enter_linear(self.layer_norm(x)) # shape: (batch_size, text_len, input_dim)
+        x = self.exit_linear(F.relu(x)) # shape: (batch_size, text_len, input_dim)
         
-        return self.dropout(x) + skip_connection
+        return x_copy + self.dropout(x) # shape: (batch_size, text_len, input_dim)
 
 
 class MultiheadSelfAttention(nn.Module):
@@ -48,10 +40,10 @@ class MultiheadSelfAttention(nn.Module):
     Ref Assignment 5
     A vanilla multi-head masked self-attention layer with a projection at the end.
     I believe I could have just used torch.nn.MultiheadAttention but their documentation
-    is all but absent and code ugly so I don't trust it, rolling my own here.
+    is all but absent and code ugly so I don't trust it, rolling (??????) my own here.
     """
 
-    def __init__(self, n_embd, n_head, drop_prob=0.1, num_convs=4, kernel_size=3, block_index=1, num_blocks=1):
+    def __init__(self, n_embd, n_head, drop_prob=0.1, num_convs=4, n_kernel=3, block_index=1, num_blocks=1):
         #print(num_blocks)
         '''
         super().__init__()
@@ -79,29 +71,22 @@ class MultiheadSelfAttention(nn.Module):
 
         super(MultiheadSelfAttention, self).__init__()
 
-        layers_per_block = 3 + num_convs
-
-        L = layers_per_block*num_blocks
-
-        l = 1 + layers_per_block*block_index
-
-        #Each layer of our separatable convolution
-        self.convs = nn.Sequential(*[DepthwiseSeparableCNN(n_embd, kernel_size, (l + i) * 0.1/L )
-                         for i in range(1,1+num_convs)])
-
-        self.resize = nn.Linear(n_embd, 2 * n_embd)
         self.n_embd = n_embd
+        numerator = (3 + num_convs) * block_index + 1
+        denominator = (3 + num_convs) * num_blocks
 
+        # Each layer of our separatable convolution
+        self.convs = nn.Sequential(*[DSCNN(n_embd, n_kernel, (0.1 * (numerator + conv_step)) / denominator) for conv_step in range(1, 1 + num_convs)])
+        self.resize = nn.Linear(n_embd, 2 * n_embd)
         
-        # self.convs = DepthwiseSeparableCNN(n_embd, kernel_size, 0.1 )
+        # self.convs = DSCNN(n_embd, kernel_size, 0.1 )
                          
-
-        self.attention = nn.MultiheadAttention(n_embd, n_head, (l + 1 + num_convs)*0.1/L)
+        self.mh_attention = nn.MultiheadAttention(n_embd, n_head, (0.1 * (numerator + 1 + num_convs)) / denominator)
         self.dropout = nn.Dropout(drop_prob)
 
-        ## Layer normalization across the features, i.e. across the last dimension that is equal to input_dim
         self.layernorm = nn.LayerNorm(n_embd)
-        self.feedfwd = FeedForward(n_embd, (l + 1 + num_convs)*0.1/L)
+        self.ffwd = FForward(n_embd, (0.1 * (numerator + 1 + num_convs)) / denominator)
+
     def forward(self, x, is_pad):
 
 #    def forward(self, x, layer_past=None):
@@ -126,249 +111,143 @@ class MultiheadSelfAttention(nn.Module):
         return y
         '''
 
-        ''' 
-        x: input tensor of shape (batch_size, text_len, input_dim).
-            Here text_len is the length of the context/question.
-        is_pad: tensor of shape(batch_size, text_len). Hold value TRUE for pad tokens. 
-        Output: tensor of the same shape as the input, (batch_size, text_len, input_dim)
-        '''
-        x = self.convs(x) ## shape (batch_size, text_len, input_dim)
+        x_copy = self.convs(x) ## shape (batch_size, text_len, input_dim)
+        x = self.layernorm(x_copy) ## shape (batch_size, text_len, input_dim)
 
-        skip_connection = x
-
-        x = self.layernorm(x) ## shape (batch_size, text_len, input_dim)
-
-        ## shape (text_len, batch_size, input_dim).
-        ## Here transpose() is needed because of the convention of nn.MultiheadAttention.
-        
+        ## REMINDER: Dimension requirments for MH Attention mean we have to use transpose, ew to their documentation        
         x = x.transpose(0,1)        
         # print(is_pad.size())
-        x, _ = self.attention(x, x, x, key_padding_mask = is_pad, need_weights=False) 
-
-        x = x.transpose(0,1) ## shape (batch_size, text_len, input_dim)        
-        x = self.dropout(x) + skip_connection
+        x, _ = self.mh_attention(x, x, x, key_padding_mask = is_pad, need_weights = False) 
+        x = self.dropout(x.transpose(0,1)) + x_copy ## shape (batch_size, text_len, input_dim)
         #ll = nn.Linear(self.n_embd, 2 * self.n_embd)
 
         #x =  self.resize(x)
         #print(x.size())
-        x = self.feedfwd(x)
+        x = self.ffwd(x)
         return x
 
 
-class EmbeddingWithChar(nn.Module):
-    """Embedding layer used by BiDAF, with the character-level component.
-    Word-level embeddings are further refined using a 2-layer Highway Encoder
-    (see `HighwayEncoder` class for details).
-    Args:
-        word_vectors (torch.Tensor): Pre-trained word vectors.
-        char_vectors (torch.Tensor): Initial char vectors.
-        hidden_size (int): Size of hidden activations.
-        drop_prob (float): Probability of zero-ing out activations
-    """
-    def __init__(self, word_vectors, char_vectors, hidden_size, drop_prob):
-        super(EmbeddingWithChar, self).__init__()
-        self.word_embed = WordEmbedding(word_vectors, hidden_size//2, drop_prob)
-        self.char_embed = CharEmbeddings(char_vectors, hidden_size//2, drop_prob)
+class WordAndCharEmbedding(nn.Module):
+
+    def __init__(self, char_vectors, word_vectors, hidden_size, drop_prob):
+        super(WordAndCharEmbedding, self).__init__()
+
+        em_sz = hidden_size//2
+        self.word_embedding = WordEmbeddings(word_vectors, em_sz, drop_prob)
+        self.char_embedding = CharEmbeddings(char_vectors, em_sz, drop_prob)
 
     def forward(self, w_idxs, c_idxs):
-        word_emb = self.word_embed(w_idxs)   # (batch_size, seq_len, hidden_size//2)
-        char_emb = self.char_embed(c_idxs)   # (batch_size, seq_len, hidden_size//2)
 
-        emb = torch.cat([word_emb, char_emb], dim=2)
+        out = torch.cat([self.word_embedding(w_idxs), self.char_embedding(c_idxs)], dim=2)
 
-        return emb
+        return out
 
 
 class CharEmbeddings(nn.Module):
-    """
-    Class that converts input words to their embeddings from convex neural networks.
-    """
-    def __init__(self, char_vectors, embed_size, drop_prob=0.2,
-                       char_embed_size=64, char_limit=16, kernel_size=5):
-        """
-        Init the Embedding layer for one language
-        @param embed_size (int): Embedding size (dimensionality) for the output
-        @param vocab_size (int): Vocabulary size (i.e. Character tokens numbers).
-        """
+    # Apparently this is from THE OLD HOMEWORK 5 damn I was SOOO confused - used starter code from the assignment for
+    # draft of structure.
+
+    def __init__(self, char_vectors, embed_dim, dropout_prob=0.2, char_embed_size=64, largest_char_size=16, kernel_size=5):
+
         super(CharEmbeddings, self).__init__()
 
-        self.embed_size = embed_size
-
-        self.max_word_len = char_limit
-        self.dropout_rate = drop_prob
-        self.kernel_size = kernel_size
-
+        self.cnn = CNN(char_embed_size, embed_dim, largest_char_size=largest_char_size, kernel_size=kernel_size)
         self.char_embedding = nn.Embedding.from_pretrained(char_vectors)
-        self.char_embed_size = self.char_embedding.embedding_dim
-
-        self.cnn = CNN(
-            char_embed_dim=self.char_embed_size,
-            word_embed_dim=self.embed_size,
-            max_word_length=self.max_word_len,
-            kernel_size=self.kernel_size
-        )
-
-        self.highway = HighwayEncoderChar(
-            embed_dim=self.embed_size
-        )
-
-        self.dropout = nn.Dropout(self.dropout_rate)
+        self.gate = nn.Linear(embed_dim, embed_dim, bias=True)
+        self.dropout = nn.Dropout(dropout_prob)
 
     def forward(self, x):
-        """
-        Looks up character-based CNN embeddings for the words in a batch of sentences.
-        @param x: Tensor of integers of shape (sentence_length, batch_size, max_word_length) where
-            each integer is an index into the character vocabulary
-        @param output: Tensor of shape (sentence_length, batch_size, embed_size), containing the
-            CNN-based embeddings for each word of the sentences in the batch
-        """
-        # (sentence_length, batch_size, max_word_length)
-        x_emb = self.char_embedding(x) # look up char embedding
-        sentence_length, batch_size, max_word_length, char_embed_size = x_emb.size()
-        # (sentence_length, batch_size, max_word_length, char_embed_size)
-        x_reshaped = x_emb.view(sentence_length*batch_size, max_word_length, char_embed_size).permute(0, 2, 1)
-        # (sentence_length * batch_size, char_embed_size, max_word_length)
-        x_conv = self.cnn(x_reshaped)
-        # (sentence_length * batch_size, word_embed_size)
-        x_highway = self.highway(x_conv)
-        # (sentence_length * batch_size, word_embed_size)
-        x_word_emb = self.dropout(x_highway)
-        #  (sentence_length * batch_size, word_embed_size)
-        output = x_word_emb.view(sentence_length, batch_size, -1)
-        # (sentence_length, batch_size, word_embed_size)
+ 
+        x = self.char_embedding(x) #shape: (sent_len, batch_size, max_word_len, char_embed_size)
 
-        return output
+        sent_len = x.size()[0]
+        batch_size = x.size()[1]
+        max_word_len = x.size()[2]
+        char_embed_dim = x.size()[3]
+
+        x = x.view(sent_len * batch_size, max_word_len, char_embed_dim) # shape: (sent_len, batch_size, max_word_len, char_embed_size)
+        x = x.permute(0, 2, 1) # shape: (sent_len, batch_size, max_word_len, char_embed_size)
+
+        t = self.cnn(x) #shape: (batch_size * sent_len, char_embed_size, max_word_len)
+
+        g = torch.sigmoid(self.gate(t))
+        x = g * t + (1 - g) * t # shape: (sent_len * batch_size, word_embed_size)
+
+        x = self.dropout(x) #shape:(sent_len * batch_size, word_embed_size)
+        out = x.view(sent_len, batch_size, -1) #shape:(sent_len * batch_size, word_embed_size)
+
+        return out
+
 
 class CNN(nn.Module):
-    """ Uses convex neural network to combine the initial character embeddings """
 
-    def __init__(self, char_embed_dim: int, # e_char
-                       word_embed_dim: int, # e_word (set filter number to be equal to e_word)
-                       max_word_length: int=21, # (m_word) max word length
-                       kernel_size: int=5): # window size
+    def __init__(self, char_embed_size, word_embed_size, largest_char_size=21, kernel_size=5): 
         super(CNN, self).__init__()
 
-        self.conv1d = nn.Conv1d(
-            in_channels=char_embed_dim,
-            out_channels=word_embed_dim, # number of filter, output feature
-            kernel_size=kernel_size,
-            bias=True)
+        self.max_pooling = nn.MaxPool1d((largest_char_size - kernel_size) + 1)
 
-        # MaxPool simply takes the maximum across the second dimension
-        self.maxpool = nn.MaxPool1d(max_word_length - kernel_size + 1)
+        self.conv1d = nn.Conv1d(kernel_size=kernel_size, in_channels=char_embed_size, out_channels=word_embed_size, bias=True)
 
     def forward(self, x):
-        # (batch size, char embedding size, max word length)
-        x_conv = self.conv1d(x)
-        # (batch size, word embedding size, max_word_length - kernel_size + 1)
-        x_conv_out = self.maxpool(torch.relu(x_conv)).squeeze()
-        # (batch size, word embedding size)
 
-        return x_conv_out
+        return self.max_pooling(torch.relu(self.conv1d(x))).squeeze()
 
-class DepthwiseSeparableCNN(nn.Module):
-    """Depthwise Separable Convolutional Layer used in QANet encoder block
-    Illustration for depthwise separable convolution:
-    https://towardsdatascience.com/a-basic-introduction-to-separable-convolutions-b99ec3102728
-    Input is first passed through LayerNorm, then a Depthwise Separable Convolutional Layer.
-    Leakly ReLU activation is applied and a skip connection is added at the end.        
-    
-    Arguments:
-    input_dim (int): Dimension of each (non-batched) input vector.
-        In the Conv1D documentation, this is referred to as the number of input channels.     
-    kernel_size (int): Kernel size.
-        Expected to be an odd number so that the output has the same shape as the input,
-        otherwise the skip connection doesn't make sense.
-    p_dropout (float): Dropout rate.
-    """
-    def __init__(self, input_dim, kernel_size, p_dropout):
-        super(DepthwiseSeparableCNN, self).__init__()
+class DSCNN(nn.Module):
+    def __init__(self, embed_dim, kernel_dim, dropout_prob):
+        super(DSCNN, self).__init__()
                 
-        
-        ## Depthwise convolution layer.
-        ## Padding size is set to kernel_size // 2. This would guarantee that 
-        ##    (1) the kernel is never too big, and
-        ##    (2) the output text_len is the same as the input text_len.
-        ## Bias is set to False because we will add bias in the pointwise convolution layer.
-        self.depthwise = nn.Conv1d(input_dim, input_dim, kernel_size, padding = kernel_size // 2,
-                       groups = input_dim, bias = False)
-        
-        ## Pointwise convolution layer
-        ## We use nn.Linear instead of nn.Conv1D with kernel size 1 - they do the same thing
-        ## We are setting output_dim to be equal to input_dim even though it doesn't have to be in general.
-        ## This is so that a skip connection can be used.
-        self.pointwise = nn.Linear(input_dim, input_dim)
-        
         ## Layer normalization across the features, i.e. across the last dimension that is equal to input_dim
-        self.layernorm = nn.LayerNorm(input_dim)
-    
-        self.dropout = nn.Dropout(p_dropout)
+        self.layernorm = nn.LayerNorm(embed_dim)
+        self.dropout = nn.Dropout(dropout_prob)
+        
+        ## In order to enable skip connection we have the input and output dimensions be equal. 
+        self.conv_point = nn.Linear(embed_dim, embed_dim)
 
+        #Padding is set to half of the kernel size to standardize output and input text. 
+
+        padding_size = kernel_dim // 2
+        #REMINDER: Kernel size needs to be an odd number
+        self.conv_depthwise = nn.Conv1d(embed_dim, embed_dim, kernel_dim, padding = padding_size, groups = embed_dim, bias = False)
+        
     def forward(self, x):
-        """
-        x: input tensor of shape (batch_size, text_len, input_dim).
-            Here text_len is the length of the context/question.
-        The shape stays the same (batch_size, text_len, input_dim) through every step.
-        """
-        skip_connection = x
-        x = self.layernorm(x)
-        
-        ## Call transpose(1,2) back and forth because nn.Conv1D requires the number of input channels to be
-        ## the MIDDLE dimension.
-        x = self.depthwise(x.transpose(1,2)).transpose(1,2)
-        
-        x = self.pointwise(x)        
-        x = F.leaky_relu(x)
-        return self.dropout(x) + skip_connection
+        x_copy = x # shape: (batch_size, text_len, input_dim)
+        x = self.layernorm(x) # shape: (batch_size, text_len, input_dim)
+        x = self.conv_depthwise(x.transpose(1,2)).transpose(1,2) # shape: (batch_size, text_len, input_dim)
+        return x_copy + self.dropout(F.leaky_relu(self.conv_point(x))) # shape: (batch_size, text_len, input_dim)
 
-class HighwayEncoderChar(nn.Module):
-    """ Highway Networks6 have a skip-connection controlled by a dynamic gate """
 
-    def __init__(self, embed_dim: int): # word embedding dimension
-        super(HighwayEncoderChar, self).__init__()
-
-        self.conv_out_proj = nn.Linear(embed_dim, embed_dim, bias=True)
-        self.gate = nn.Linear(embed_dim, embed_dim, bias=True)
-
-    def forward(self, x_conv_out):
-        x_proj = torch.relu(self.conv_out_proj(x_conv_out))
-        g = torch.sigmoid(self.gate(x_conv_out))
-
-        x = g * x_conv_out + (1 - g) * x_conv_out
-
-        return x
 
 class ModOutput(nn.Module):
-    """Output layer used by QANet for question answering.
-    Args:
-        hidden_size (int): Hidden size used in the model.
-    """
     def __init__(self, hidden_size):
-        super(QANetOutput, self).__init__()
+        super(ModOutput, self).__init__()
         
-        self.proj01 = nn.Parameter(torch.empty(hidden_size, 1))
-        nn.init.xavier_uniform_(self.proj01)
-        self.proj11 = nn.Parameter(torch.empty(hidden_size, 1))
-        nn.init.xavier_uniform_(self.proj11)
-        self.proj02 = nn.Parameter(torch.empty(hidden_size, 1))
-        nn.init.xavier_uniform_(self.proj02)
-        self.proj22 = nn.Parameter(torch.empty(hidden_size, 1))
-        nn.init.xavier_uniform_(self.proj22)
+
+        self.left_bias = nn.Parameter(torch.zeros(1))
+        self.right_bias = nn.Parameter(torch.zeros(1))
+
+        self.proj1 = nn.Parameter(torch.empty(hidden_size, 1))
+        self.proj3 = nn.Parameter(torch.empty(hidden_size, 1))
+        self.proj2 = nn.Parameter(torch.empty(hidden_size, 1))
+        self.proj4 = nn.Parameter(torch.empty(hidden_size, 1))
+
+        nn.init.xavier_uniform_(self.proj1)
+        nn.init.xavier_uniform_(self.proj3)
+        nn.init.xavier_uniform_(self.proj2)
+        nn.init.xavier_uniform_(self.proj4)
         
-        self.bias1 = nn.Parameter(torch.zeros(1))
-        self.bias2 = nn.Parameter(torch.zeros(1))
-    def forward(self, M0, M1, M2, is_pad):
-    	"""
-    	M0, M1, M2: tensors of shape (batch_size, text_len, hidden_size)
-    	is_pad: tensor of shape(batch_size, text_len). Hold value TRUE for pad tokens.
-    	
-    	This method applies linear projections separately instead of concatenating the input tensors to save a little memory.
-    	"""
-    	A1 = torch.matmul(M0, self.proj01) + torch.matmul(M1, self.proj11) + self.bias1 ## shape (batch_size, text_len, 1)
-    	A2 = torch.matmul(M0, self.proj02) + torch.matmul(M2, self.proj22) + self.bias2 ## shape (batch_size, text_len, 1)
-    	
-    	# Shapes: (batch_size, text_len)
-    	log_p1 = masked_softmax(A1.squeeze(dim=2), is_pad, log_softmax=True)
-    	log_p2 = masked_softmax(A2.squeeze(dim=2), is_pad, log_softmax=True)
-    	
-    	return log_p1, log_p2
+        
+    def forward(self, satt1, satt2, satt3, is_pad):
+
+        mult1 = torch.matmul(satt1, self.proj1)
+        mult2 = torch.matmul(satt2, self.proj3)
+
+        sum1 = self.left_bias + mult1 + mult2   # shape: (batch_size, text_len, 1)
+        log_p1 = masked_softmax(sum1.squeeze(dim=2), is_pad, log_softmax=True)  # shape: (batch_size, text_len)
+
+        mult1 = torch.matmul(satt1, self.proj2)
+        mult2 = torch.matmul(satt3, self.proj4)
+
+        sum2 = self.right_bias + mult1 + mult2  # shape: (batch_size, text_len, 1)
+        log_p2 = masked_softmax(sum2.squeeze(dim=2), is_pad, log_softmax=True)  # shape: (batch_size, text_len)
+
+        return log_p1, log_p2
