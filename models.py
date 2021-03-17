@@ -50,6 +50,7 @@ class BiDAF(nn.Module):
                                     hidden_size=hidden_size,
                                     drop_prob=drop_prob)
 
+        self.pos_encoder = new_layers.PositionalEncoding(hidden_size, dropout=drop_prob)
         self.context_enc_blocks = nn.ModuleList([
             new_layers.MultiheadSelfAttention(n_embd=hidden_size, n_head=4, drop_prob=drop_prob, 
                                     block_index=block_index, num_blocks=1)
@@ -62,8 +63,6 @@ class BiDAF(nn.Module):
 
         self.post_c_enc = nn.Linear(hidden_size, 2 * hidden_size)
         self.post_q_enc = nn.Linear(hidden_size, 2 * hidden_size)
-
-        self.pos_encoder = new_layers.PositionalEncoding(2 * hidden_size, dropout=drop_prob)
 
         self.enc = layers.RNNEncoder(input_size=hidden_size,
                                      hidden_size=hidden_size,
@@ -114,8 +113,8 @@ class BiDAF(nn.Module):
         c_emb = self.emb(cw_idxs, cc_idxs)   # (batch_size, c_len, hidden_size)
         q_emb = self.emb(qw_idxs, qc_idxs)  # (batch_size, q_len, hidden_size)
         
-        c_enc = c_emb
-        q_enc = q_emb
+        c_enc = self.pos_encoder(c_emb)
+        q_enc = self.pos_encoder(q_emb)
 
         for c_enc_blk in self.context_enc_blocks:  # (batch_size, c_len, hidden_size)
             c_enc = c_enc_blk(c_enc, c_is_pad)
