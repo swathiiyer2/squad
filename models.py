@@ -63,6 +63,8 @@ class BiDAF(nn.Module):
         self.post_c_enc = nn.Linear(hidden_size, 2 * hidden_size)
         self.post_q_enc = nn.Linear(hidden_size, 2 * hidden_size)
 
+        self.pos_encoder = new_layers.PositionalEncoding(2 * hidden_size, dropout=drop_prob)
+
         self.enc = layers.RNNEncoder(input_size=hidden_size,
                                      hidden_size=hidden_size,
                                      num_layers=1,
