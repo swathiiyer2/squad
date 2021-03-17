@@ -113,14 +113,18 @@ class BiDAF(nn.Module):
         c_emb = self.emb(cw_idxs, cc_idxs)   # (batch_size, c_len, hidden_size)
         q_emb = self.emb(qw_idxs, qc_idxs)  # (batch_size, q_len, hidden_size)
         
-        c_enc = self.pos_encoder(c_emb)
-        q_enc = self.pos_encoder(q_emb)
+        c_enc_pos = self.pos_encoder(c_emb)
+        q_enc_pos = self.pos_encoder(q_emb)
+
+        
+
+
 
         for c_enc_blk in self.context_enc_blocks:  # (batch_size, c_len, hidden_size)
-            c_enc = c_enc_blk(c_enc, c_is_pad)
+            c_enc = c_enc_blk(c_emb, c_enc_pos, c_is_pad)
 
         for q_enc_blk in self.question_enc_blocks:   # (batch_size, q_len, hidden_size)
-            q_enc = q_enc_blk(q_enc, q_is_pad)
+            q_enc = q_enc_blk(q_emb, q_enc_pos, q_is_pad)
 
         c_enc = self.post_c_enc(c_enc)
         q_enc = self.post_q_enc(q_enc)
@@ -147,20 +151,25 @@ class BiDAF(nn.Module):
 
         self_attn = self.pre_satt(att)    # (batch_size, c_len, hidden_size)
 
+        print("size of pos is")
+        print(c_enc.size())
+        print("size of sa is")
+        print(self_attn.size())
+
         for self_att in self.self_attn_blocks:
-            self_attn = self_att(self_attn, c_is_pad)
+            self_attn = self_att(self_attn, c_enc_pos, c_is_pad)
 
         self_attn1 = self_attn       # (batch_size, c_len, 8 * hidden_size)
         #print("size of self att3")
         #print(self_att3.size())
 
         for self_att in self.self_attn_blocks:
-            self_attn = self_att(self_attn, c_is_pad)
+            self_attn = self_att(self_attn, c_enc_pos, c_is_pad)
 
         self_attn2 = self_attn       # (batch_size, c_len, 8 * hidden_size)
 
         for self_att in self.self_attn_blocks:
-            self_attn = self_att(self_attn, c_is_pad)
+            self_attn = self_att(self_attn, c_enc_pos, c_is_pad)
 
         self_attn3 = self_attn       # (batch_size, c_len, 8 * hidden_size)
 

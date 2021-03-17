@@ -78,6 +78,8 @@ class MultiheadSelfAttention(nn.Module):
         # Each layer of our separatable convolution
         self.convs = nn.Sequential(*[DSCNN(n_embd, n_kernel, (0.1 * (numerator + conv_step)) / denominator) for conv_step in range(1, 1 + num_convs)])
         self.resize = nn.Linear(n_embd, 2 * n_embd)
+
+        self.leveled_dropout = nn.Dropout((0.1 * numerator) / denominator)
         
         # self.convs = DSCNN(n_embd, kernel_size, 0.1 )
                          
@@ -87,7 +89,7 @@ class MultiheadSelfAttention(nn.Module):
         self.layernorm = nn.LayerNorm(n_embd)
         self.ffwd = FForward(n_embd, (0.1 * (numerator + 1 + num_convs)) / denominator)
 
-    def forward(self, x, is_pad):
+    def forward(self, x, x_pe, is_pad):
 
 #    def forward(self, x, layer_past=None):
         '''
@@ -110,7 +112,7 @@ class MultiheadSelfAttention(nn.Module):
         y = self.resid_drop(self.proj(y))
         return y
         '''
-
+        x = self.leveled_dropout(x + x_pe)
         x_copy = self.convs(x) ## shape (batch_size, text_len, input_dim)
         x = self.layernorm(x_copy) ## shape (batch_size, text_len, input_dim)
 
