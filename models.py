@@ -233,8 +233,8 @@ class QANet(nn.Module):
         
         ## Pass through embedding encoding layer
         ## shape (batch_size, c_len, hidden_size) and (batch_size, q_len, hidden_size), respectively
-        x = self.dropout(self.embed_encoder(x, pe_c, c_is_pad))
-        y = self.dropout(self.embed_encoder(y, PositionEncoder(y), q_is_pad))
+        x = self.dropout(self.embed_encoder(x, x, c_is_pad))
+        y = self.dropout(self.embed_encoder(y, y, q_is_pad))
         
         ## Context-query bi-attention, then map back to hidden_size
         bi_att = self.cq_att(x, y, c_is_pad, q_is_pad) ## shape (batch_size, c_len, 4 * hidden_size)
