@@ -727,9 +727,9 @@ def compute_f1(a_gold, a_pred):
 
 
 
-    '''
+'''
 
-    """Utility classes and methods.
+"""Utility classes and methods.
 Author:
     Chris Chute (chute@stanford.edu)
 """

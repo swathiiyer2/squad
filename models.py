@@ -182,9 +182,9 @@ class BiDAF(nn.Module):
         return out
 
 
-        '''
+'''
 
-        """Top-level model classes.
+"""Top-level model classes.
 Author: Dat Nguyen (dpnguyen@stanford.edu)
 Modified from CS224n starter code by Chris Chute (chute@stanford.edu)
 """
