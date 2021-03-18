@@ -82,7 +82,7 @@ class BiDAF(nn.Module):
 
         self.self_attn_blocks = nn.ModuleList([
             new_layers.MultiheadSelfAttention(n_embd=hidden_size, n_head=4, drop_prob=drop_prob, 
-                                    block_index=block_index, num_blocks=6)
+                                    block_index=block_index, num_blocks=6, num_convs=2, n_kernel=7)
             for block_index in range(6)])
 
         self.mod = layers.RNNEncoder(input_size = 8 * hidden_size,
