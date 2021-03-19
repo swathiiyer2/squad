@@ -152,8 +152,8 @@ class BiDAF(nn.Module):
 
         self_attn = self.pre_satt(att)    # (batch_size, c_len, hidden_size)
 
-        self_attn0 = self_attn
-        '''
+        
+       
         for self_att in self.self_attn_blocks:
             self_attn = self_att(self_attn, c_enc_pos, c_is_pad)
 
@@ -174,8 +174,8 @@ class BiDAF(nn.Module):
         #mod = self.mod(self_attn, c_len)        # (batch_size, c_len, 2 * hidden_size)
         #print("size of mod")
         #print(mod.size())
-        '''
-        out = self.out(self_attn0, self_attn0, self_attn0, c_is_pad) ## 2 tensors, each (batch_size, c_len)
+       
+        out = self.out(self_attn1, self_attn2, self_attn3, c_is_pad) ## 2 tensors, each (batch_size, c_len)
         #out = self.out(self_attn, mod, c_mask)  # 2 tensors, each (batch_size, c_len)
         #print("out is")
         #print(out)
