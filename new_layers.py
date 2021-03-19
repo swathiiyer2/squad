@@ -162,7 +162,7 @@ class CharEmbeddings(nn.Module):
     def forward(self, x):
  
         x = self.char_embedding(x) #shape: (sent_len, batch_size, max_word_len, char_embed_size)
-        print(x.size())
+        #print(x.size())
         x = self.char_resize(x)
 
         sent_len = x.size()[0]
