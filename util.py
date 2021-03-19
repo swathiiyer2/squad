@@ -636,6 +636,12 @@ def convert_tokens(eval_dict, qa_id, y_start_list, y_end_list, no_answer):
         else:
             if no_answer:
                 y_start, y_end = y_start - 1, y_end - 1
+            print("no answer is")
+            print(no_answer)
+            print("y start is")
+            print(y_start)
+            print("spans[y_start] is")
+            print(spans[y_start])
             start_idx = spans[y_start][0]
             end_idx = spans[y_end][1]
             pred_dict[str(qid)] = context[start_idx: end_idx]

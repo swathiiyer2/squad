@@ -113,13 +113,13 @@ class BiDAF(nn.Module):
 
         c_emb = self.emb(cw_idxs, cc_idxs)   # (batch_size, c_len, hidden_size)
         q_emb = self.emb(qw_idxs, qc_idxs)  # (batch_size, q_len, hidden_size)
-        
+        '''
         c_enc_pos = self.pos_encoder(c_emb)
         q_enc_pos = self.pos_encoder(q_emb)
 
         
 
-
+        
 
         for c_enc_blk in self.context_enc_blocks:  # (batch_size, c_len, hidden_size)
             c_enc = c_enc_blk(c_emb, c_enc_pos, c_is_pad)
@@ -129,10 +129,10 @@ class BiDAF(nn.Module):
 
         c_enc = self.post_c_enc(c_enc)
         q_enc = self.post_q_enc(q_enc)
-
-        #c_enc = self.enc(c_emb, c_len)    # (batch_size, c_len, 2 * hidden_size)
-        #q_enc = self.enc(q_emb, q_len)    # (batch_size, q_len, 2 * hidden_size)
-
+        '''
+        c_enc = self.enc(c_emb, c_len)    # (batch_size, c_len, 2 * hidden_size)
+        q_enc = self.enc(q_emb, q_len)    # (batch_size, q_len, 2 * hidden_size)
+        '''
         #print("c_emb is")
         #print(c_emb)
         #print("q_emb is")
@@ -143,7 +143,7 @@ class BiDAF(nn.Module):
 
         #print(c_enc)
         #print(q_enc)
-
+        '''
         att = self.att(c_enc, q_enc,
                        c_mask, q_mask)    # (batch_size, c_len, 8 * hidden_size)
         
@@ -152,32 +152,34 @@ class BiDAF(nn.Module):
 
         self_attn = self.pre_satt(att)    # (batch_size, c_len, hidden_size)
 
-
+        self_attn0 = self_attn
+        '''
         for self_att in self.self_attn_blocks:
             self_attn = self_att(self_attn, c_enc_pos, c_is_pad)
 
-        self_attn1 = self_attn       # (batch_size, c_len, 8 * hidden_size)
+        self_attn1 = self_attn       # (batch_size, c_len, hidden_size)
         #print("size of self att3")
         #print(self_att3.size())
 
         for self_att in self.self_attn_blocks:
             self_attn = self_att(self_attn, c_enc_pos, c_is_pad)
 
-        self_attn2 = self_attn       # (batch_size, c_len, 8 * hidden_size)
+        self_attn2 = self_attn       # (batch_size, c_len, hidden_size)
 
         for self_att in self.self_attn_blocks:
             self_attn = self_att(self_attn, c_enc_pos, c_is_pad)
 
-        self_attn3 = self_attn       # (batch_size, c_len, 8 * hidden_size)
+        self_attn3 = self_attn       # (batch_size, c_len, hidden_size)
 
         #mod = self.mod(self_attn, c_len)        # (batch_size, c_len, 2 * hidden_size)
         #print("size of mod")
         #print(mod.size())
-        
-        out = self.out(self_attn1, self_attn2, self_attn3, c_is_pad) ## 2 tensors, each (batch_size, c_len)
+        '''
+        out = self.out(self_attn0, self_attn0, self_attn0, c_is_pad) ## 2 tensors, each (batch_size, c_len)
         #out = self.out(self_attn, mod, c_mask)  # 2 tensors, each (batch_size, c_len)
         #print("out is")
         #print(out)
+        #print(out.size())
         return out
 
 

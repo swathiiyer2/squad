@@ -251,7 +251,8 @@ class ModOutput(nn.Module):
 
         sum2 = self.right_bias + mult1 + mult2  # shape: (batch_size, text_len, 1)
         log_p2 = masked_softmax(sum2.squeeze(dim=2), is_pad, log_softmax=True)  # shape: (batch_size, text_len)
-
+        print(log_p1.size())
+        print(log_p2.size())
         return log_p1, log_p2
 
 class PositionalEncoding(nn.Module):
