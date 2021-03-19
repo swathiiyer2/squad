@@ -105,8 +105,8 @@ class BiDAF(nn.Module):
         #c_emb = self.emb(cw_idxs)         # (batch_size, c_len, hidden_size)
         #q_emb = self.emb(qw_idxs)         # (batch_size, q_len, hidden_size)
         
-        #print("input cw_idxs")
-        #print(cw_idxs)
+        print("input cc_idxs")
+        print(cc_idxs)
         #print("input qu_idxs")
         #print(qw_idxs)
 

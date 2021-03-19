@@ -157,10 +157,13 @@ class CharEmbeddings(nn.Module):
         self.char_embedding = nn.Embedding.from_pretrained(char_vectors)
         self.gate = nn.Linear(embed_dim, embed_dim, bias=True)
         self.dropout = nn.Dropout(dropout_prob)
+        self.char_resize = nn.Linear(100, 64)
 
     def forward(self, x):
  
         x = self.char_embedding(x) #shape: (sent_len, batch_size, max_word_len, char_embed_size)
+        print(x.size())
+        x = self.char_resize(x)
 
         sent_len = x.size()[0]
         batch_size = x.size()[1]
