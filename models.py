@@ -113,7 +113,7 @@ class BiDAF(nn.Module):
 
         c_emb = self.emb(cw_idxs, cc_idxs)   # (batch_size, c_len, hidden_size)
         q_emb = self.emb(qw_idxs, qc_idxs)  # (batch_size, q_len, hidden_size)
-        '''
+        
         c_enc_pos = self.pos_encoder(c_emb)
         q_enc_pos = self.pos_encoder(q_emb)
 
@@ -143,7 +143,7 @@ class BiDAF(nn.Module):
 
         #print(c_enc)
         #print(q_enc)
-        '''
+        
         att = self.att(c_enc, q_enc,
                        c_mask, q_mask)    # (batch_size, c_len, 8 * hidden_size)
         
